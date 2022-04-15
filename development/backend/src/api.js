@@ -868,7 +868,7 @@ const postFiles = async (req, res) => {
   }
 
   const base64Data = req.body.data;
-  mylog(base64Data);
+  // mylog(base64Data);
 
   const name = req.body.name;
 
@@ -877,16 +877,21 @@ const postFiles = async (req, res) => {
 
   const binary = Buffer.from(base64Data, 'base64');
 
-  fs.writeFileSync(`${filePath}${newId}_${name}`, binary);
+  const imgFilePath = `${filePath}${newId}_${name}`;
+  const imgPromise = fs.writeFile(imgFilePath, binary);
 
-  const image = await jimp.read(fs.readFileSync(`${filePath}${newId}_${name}`));
-  mylog(image.bitmap.width);
-  mylog(image.bitmap.height);
+  const thumbImgFilePath = `${filePath}${newThumbId}_thumb_${name}`;
+  const thumbPromise = await jimp.read(binary).then(image => {
+    mylog(image.bitmap.width);
+    mylog(image.bitmap.height);
 
-  const size = image.bitmap.width < image.bitmap.height ? image.bitmap.width : image.bitmap.height;
-  await image.cover(size, size);
+    const size = image.bitmap.width < image.bitmap.height ? image.bitmap.width : image.bitmap.height;
+    return image.cover(size, size);
+  }).then(thumbImg => {
+    return thumbImg.writeAsync(thumbImgFilePath);
+  });
 
-  await image.writeAsync(`${filePath}${newThumbId}_thumb_${name}`);
+  await Promise.all([imgPromise, thumbPromise]);
 
   await pool.query(
     `insert into file (file_id, path, name)
