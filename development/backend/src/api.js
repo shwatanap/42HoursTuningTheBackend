@@ -878,7 +878,7 @@ const postFiles = async (req, res) => {
   const binary = Buffer.from(base64Data, 'base64');
 
   const imgFilePath = `${filePath}${newId}_${name}`;
-  const imgPromise = fs.writeFile(imgFilePath, binary);
+  const imgPromise = fs.promises.writeFile(imgFilePath, binary);
 
   const thumbImgFilePath = `${filePath}${newThumbId}_thumb_${name}`;
   const thumbPromise = await jimp.read(binary).then(image => {
