@@ -233,30 +233,23 @@ const tomeActive = async (req, res) => {
     limit = 10;
   }
 
-  // 自分が所属しているグループを取得
-  const searchMyGroupQs = `select * from group_member where user_id = ?`;
-  const [myGroupResult] = await pool.query(searchMyGroupQs, [user.user_id]);
-  mylog(`myGroupResult: ${JSON.stringify(myGroupResult)}`);
-
-  // 所属グループが持っているカテゴリ一覧を取得
+  // 自分が所属しているグループのカテゴリ一覧を取得を取得
+  let start = Date.now();
   const targetCategoryAppGroupList = [];
-  const searchTargetQs = `select * from category_group where group_id = ?`;
-
-  for (let i = 0; i < myGroupResult.length; i++) {
-    const groupId = myGroupResult[i].group_id;
-    mylog(`groupId: ${groupId}`);
-
-    const [targetResult] = await pool.query(searchTargetQs, [groupId]);
-    for (let j = 0; j < targetResult.length; j++) {
-      const targetLine = targetResult[j];
-      mylog(`targetLine: ${targetLine}`);
-
-      targetCategoryAppGroupList.push({
-        categoryId: targetLine.category_id,
-        applicationGroup: targetLine.application_group,
-      });
-    }
+  const searchMyGroupCategoryQs = `SELECT category_id, application_group FROM group_member ` +
+    `INNER JOIN category_group ON category_group.group_id = group_member.group_id ` +
+    `WHERE group_member.user_id = ?`;
+  const [myGroupCategories] = await pool.query(searchMyGroupCategoryQs, [user.user_id]);
+  console.log(JSON.stringify(myGroupCategories));
+  for (const myGroupCategory of myGroupCategories) {
+    targetCategoryAppGroupList.push({
+      categoryId: myGroupCategory.category_id,
+      applicationGroup: myGroupCategory.application_group,
+    });
   }
+  console.log(`自分が所属しているグループのカテゴリを取得: ${Date.now() - start}`);
+
+  start = Date.now();
 
   let searchRecordQs =
     'select * from record where status = "open" and (category_id, application_group) in (';
@@ -284,6 +277,10 @@ const tomeActive = async (req, res) => {
 
   const [recordResult] = await pool.query(searchRecordQs, param);
   mylog(`recordResult: ${recordResult}`);
+
+  console.log(`自分の所属しているグループ宛てのレコードを取得する。: ${Date.now() - start}`);
+
+  start = Date.now();
 
   const items = Array(recordResult.length);
   let count = 0;
@@ -367,10 +364,13 @@ const tomeActive = async (req, res) => {
     items[i] = resObj;
   }
 
+
   const [recordCountResult] = await pool.query(recordCountQs, param);
   if (recordCountResult.length === 1) {
     count = recordCountResult[0]['count(*)'];
   }
+
+  console.log(`レスポンス用のデータを生成する: ${Date.now() - start}`);
 
   res.send({ count: count, items: items });
 };
