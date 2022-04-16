@@ -433,35 +433,78 @@ const allActive = async (req, res) => {
     let commentCount = 0;
     let isUnConfirmed = true;
 
-    const [userResult] = await pool.query(searchUserQs, [createdBy]);
-    if (userResult.length === 1) {
-      createdByName = userResult[0].name;
+    var start = Date.now();
+    const results = await Promise.all([
+      pool.query(searchUserQs, [createdBy]),
+      pool.query(searchGroupQs, [applicationGroup]),
+      pool.query(searchThumbQs, [recordId]),
+      pool.query(countQs, [recordId]),
+      pool.query(searchLastQs, [user.user_id, recordId]),
+    ]);
+    var end = Date.now();
+    console.log(`All Time: ${end - start} [ms]`);
+    if (results[0].length === 1) {
+      createdByName = results[0][0].name;
     }
-
-    const [groupResult] = await pool.query(searchGroupQs, [applicationGroup]);
-    if (groupResult.length === 1) {
-      applicationGroupName = groupResult[0].name;
+    if (results[1].length === 1) {
+      applicationGroupName = results[1][0].name;
     }
-
-    const [itemResult] = await pool.query(searchThumbQs, [recordId]);
-    if (itemResult.length === 1) {
-      thumbNailItemId = itemResult[0].item_id;
+    if (results[2].length === 1) {
+      thumbNailItemId = results[2][0].item_id;
     }
-
-    const [countResult] = await pool.query(countQs, [recordId]);
-    if (countResult.length === 1) {
-      commentCount = countResult[0]['count(*)'];
+    if (results[3].length === 1) {
+      commentCount = results[3][0]['count(*)'];
     }
-
-    const [lastResult] = await pool.query(searchLastQs, [user.user_id, recordId]);
-    if (lastResult.length === 1) {
+    if (results[4].length === 1) {
       mylog(updatedAt);
       const updatedAtNum = Date.parse(updatedAt);
-      const accessTimeNum = Date.parse(lastResult[0].access_time);
+      const accessTimeNum = Date.parse(results[4][0].access_time);
       if (updatedAtNum <= accessTimeNum) {
         isUnConfirmed = false;
       }
     }
+
+
+    // var start = Date.now();
+    // const [userResult] = await pool.query(searchUserQs, [createdBy]);
+    // if (userResult.length === 1) {
+    //   createdByName = userResult[0].name;
+    // }
+    // var end = Date.now();
+    // console.log(`User Time: ${end - start} [ms]`);
+
+    // const [groupResult] = await pool.query(searchGroupQs, [applicationGroup]);
+    // if (groupResult.length === 1) {
+    //   applicationGroupName = groupResult[0].name;
+    // }
+    // var end = Date.now();
+    // console.log(`Group Time: ${end - start} [ms]`);
+
+    // const [itemResult] = await pool.query(searchThumbQs, [recordId]);
+    // if (itemResult.length === 1) {
+    //   thumbNailItemId = itemResult[0].item_id;
+    // }
+    // var end = Date.now();
+    // console.log(`Item Time: ${end - start} [ms]`);
+
+    // const [countResult] = await pool.query(countQs, [recordId]);
+    // if (countResult.length === 1) {
+    //   commentCount = countResult[0]['count(*)'];
+    // }
+    // var end = Date.now();
+    // console.log(`Count Time: ${end - start} [ms]`);
+
+    // const [lastResult] = await pool.query(searchLastQs, [user.user_id, recordId]);
+    // if (lastResult.length === 1) {
+    //   mylog(updatedAt);
+    //   const updatedAtNum = Date.parse(updatedAt);
+    //   const accessTimeNum = Date.parse(lastResult[0].access_time);
+    //   if (updatedAtNum <= accessTimeNum) {
+    //     isUnConfirmed = false;
+    //   }
+    // }
+    // var end = Date.now();
+    // console.log(`Last Time: ${end - start} [ms]`);
 
     resObj.recordId = recordId;
     resObj.title = line.title;
