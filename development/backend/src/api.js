@@ -94,7 +94,7 @@ const postRecords = async (req, res) => {
   );
 
   for (const e of body.fileIdList) {
-    await execSqlWithTimer(
+    await pool.query(
       `insert into record_item_file
         (linked_record_id, linked_file_id, linked_thumbnail_file_id, created_at)
         values (?, ?, ?, now())`,
