@@ -102,16 +102,13 @@ const postRecords = async (req, res) => {
   );
 
   for (const e of body.fileIdList) {
-    await pool.query(
+    await execSqlWithTimer(
       `insert into record_item_file
         (linked_record_id, linked_file_id, linked_thumbnail_file_id, created_at)
         values (?, ?, ?, now())`,
       [`${newId}`, `${e.fileId}`, `${e.thumbFileId}`],
     );
   }
-  console.log(insertingRecordItemQuery);
-  console.log(`param: ${param}`);
-  await execSqlWithTimer(insertingRecordItemQuery, param);
 
   res.send({ recordId: newId });
 };
