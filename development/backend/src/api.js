@@ -5,14 +5,6 @@ const jimp = require('jimp');
 
 const mysql = require('mysql2/promise');
 
-const execSqlWithTimer = async (statement, param) => {
-  const start = Date.now();
-
-  const result = await pool.execute(statement, param);
-
-  console.log(`SQL TIME: ${statement.replace(/[\n\r\t\s]+/g, ' ').trim()}: ${Date.now() - start}`);
-  return result;
-}
 
 // MEMO: 設定項目はここを参考にした
 // https://github.com/sidorares/node-mysql2#api-and-configuration
@@ -42,7 +34,7 @@ const getLinkedUser = async (headers) => {
   mylog(target);
   const qs = `select * from session where value = ?`;
 
-  const [rows] = await execSqlWithTimer(qs, [`${target}`]);
+  const [rows] = await pool.query(qs, [`${target}`]);
 
   if (rows.length !== 1) {
     mylog('セッションが見つかりませんでした。');
@@ -69,7 +61,7 @@ const postRecords = async (req, res) => {
   const body = req.body;
   mylog(body);
 
-  let [rows] = await execSqlWithTimer(
+  let [rows] = await pool.query(
     `select * from group_member where user_id = ?
     AND is_primary = true`,
     [user.user_id],
@@ -87,7 +79,7 @@ const postRecords = async (req, res) => {
 
   const newId = uuidv4();
 
-  await execSqlWithTimer(
+  await pool.query(
     `insert into record
     (record_id, status, title, detail, category_id, application_group, created_by, created_at, updated_at)
     values (?, "open", ?, ?, ?, ?, ?, now(), now())`,
@@ -109,9 +101,6 @@ const postRecords = async (req, res) => {
       [`${newId}`, `${e.fileId}`, `${e.thumbFileId}`],
     );
   }
-  console.log(insertingRecordItemQuery);
-  console.log(`param: ${param}`);
-  await execSqlWithTimer(insertingRecordItemQuery, param);
 
   res.send({ recordId: newId });
 };
@@ -130,7 +119,7 @@ const getRecord = async (req, res) => {
 
   const recordQs = `select * from record where record_id = ?`;
 
-  const [recordResult] = await execSqlWithTimer(recordQs, [`${recordId}`]);
+  const [recordResult] = await pool.query(recordQs, [`${recordId}`]);
   mylog(recordResult);
 
   if (recordResult.length !== 1) {
@@ -161,27 +150,27 @@ const getRecord = async (req, res) => {
 
   const line = recordResult[0];
 
-  const [primaryResult] = await execSqlWithTimer(searchPrimaryGroupQs, [line.created_by]);
+  const [primaryResult] = await pool.query(searchPrimaryGroupQs, [line.created_by]);
   if (primaryResult.length === 1) {
     const primaryGroupId = primaryResult[0].group_id;
 
-    const [groupResult] = await execSqlWithTimer(searchGroupQs, [primaryGroupId]);
+    const [groupResult] = await pool.query(searchGroupQs, [primaryGroupId]);
     if (groupResult.length === 1) {
       recordInfo.createdByPrimaryGroupName = groupResult[0].name;
     }
   }
 
-  const [appGroupResult] = await execSqlWithTimer(searchGroupQs, [line.application_group]);
+  const [appGroupResult] = await pool.query(searchGroupQs, [line.application_group]);
   if (appGroupResult.length === 1) {
     recordInfo.applicationGroupName = appGroupResult[0].name;
   }
 
-  const [userResult] = await execSqlWithTimer(searchUserQs, [line.created_by]);
+  const [userResult] = await pool.query(searchUserQs, [line.created_by]);
   if (userResult.length === 1) {
     recordInfo.createdByName = userResult[0].name;
   }
 
-  const [categoryResult] = await execSqlWithTimer(searchCategoryQs, [line.category_id]);
+  const [categoryResult] = await pool.query(searchCategoryQs, [line.category_id]);
   if (categoryResult.length === 1) {
     recordInfo.categoryName = categoryResult[0].name;
   }
@@ -196,14 +185,14 @@ const getRecord = async (req, res) => {
   recordInfo.createdAt = line.created_at;
 
   const searchItemQs = `select * from record_item_file where linked_record_id = ? order by item_id asc`;
-  const [itemResult] = await execSqlWithTimer(searchItemQs, [line.record_id]);
+  const [itemResult] = await pool.query(searchItemQs, [line.record_id]);
   mylog('itemResult');
   mylog(itemResult);
 
   const searchFileQs = `select * from file where file_id = ?`;
   for (let i = 0; i < itemResult.length; i++) {
     const item = itemResult[i];
-    const [fileResult] = await execSqlWithTimer(searchFileQs, [item.linked_file_id]);
+    const [fileResult] = await pool.query(searchFileQs, [item.linked_file_id]);
 
     let fileName = '';
     if (fileResult.length !== 0) {
@@ -213,7 +202,7 @@ const getRecord = async (req, res) => {
     recordInfo.files.push({ itemId: item.item_id, name: fileName });
   }
 
-  await execSqlWithTimer(
+  await pool.query(
     `
 	INSERT INTO record_last_access
 	(record_id, user_id, access_time)
@@ -244,13 +233,11 @@ const tomeActive = async (req, res) => {
     limit = 10;
   }
 
-  // TODO: 単一SQL文で処理する
   // 自分が所属しているグループを取得
   const searchMyGroupQs = `select * from group_member where user_id = ?`;
-  const [myGroupResult] = await execSqlWithTimer(searchMyGroupQs, [user.user_id]);
+  const [myGroupResult] = await pool.query(searchMyGroupQs, [user.user_id]);
   mylog(`myGroupResult: ${JSON.stringify(myGroupResult)}`);
 
-  let start = Date.now();
   // 所属グループが持っているカテゴリ一覧を取得
   const targetCategoryAppGroupList = [];
   const searchTargetQs = `select * from category_group where group_id = ?`;
@@ -259,7 +246,7 @@ const tomeActive = async (req, res) => {
     const groupId = myGroupResult[i].group_id;
     mylog(`groupId: ${groupId}`);
 
-    const [targetResult] = await execSqlWithTimer(searchTargetQs, [groupId]);
+    const [targetResult] = await pool.query(searchTargetQs, [groupId]);
     for (let j = 0; j < targetResult.length; j++) {
       const targetLine = targetResult[j];
       mylog(`targetLine: ${targetLine}`);
@@ -270,24 +257,6 @@ const tomeActive = async (req, res) => {
       });
     }
   }
-  console.log(`searchGroupCategories: ${Date.now() - start}`);
-
-  /*
-  start = Date.now();
-  const searchMyGroupCategoryQs = `SELECT category_id, application_group FROM group_member ` +
-    `INNER JOIN category_group ON category_group.group_id = group_member.group_id ` +
-    `WHERE group_member.user_id = ?`;
-  const [myGroupCategories] = await execSqlWithTimer(searchMyGroupCategoryQs, [user.user_id]);
-  console.log(JSON.stringify(myGroupCategories));
-  for (let i = 0; i < myGroupCategories; i++) {
-    const myGroupCategory = myGroupCategories[i];
-    targetCategoryAppGroupList.push({
-      categoryId: myGroupCategory.category_id,
-      applicationGroup: myGroupCategory.application_group,
-    });
-  }
-  console.log(`searchGroupCategories2: ${Date.now() - start}`);
-  */
 
   let searchRecordQs =
     'select * from record where status = "open" and (category_id, application_group) in (';
@@ -313,7 +282,7 @@ const tomeActive = async (req, res) => {
   mylog(`searchRecordQs: ${searchRecordQs}`);
   mylog(`param: ${param}`);
 
-  const [recordResult] = await execSqlWithTimer(searchRecordQs, param);
+  const [recordResult] = await pool.query(searchRecordQs, param);
   mylog(`recordResult: ${recordResult}`);
 
   const items = Array(recordResult.length);
@@ -353,27 +322,27 @@ const tomeActive = async (req, res) => {
     let commentCount = 0;
     let isUnConfirmed = true;
 
-    const [userResult] = await execSqlWithTimer(searchUserQs, [createdBy]);
+    const [userResult] = await pool.query(searchUserQs, [createdBy]);
     if (userResult.length === 1) {
       createdByName = userResult[0].name;
     }
 
-    const [groupResult] = await execSqlWithTimer(searchGroupQs, [applicationGroup]);
+    const [groupResult] = await pool.query(searchGroupQs, [applicationGroup]);
     if (groupResult.length === 1) {
       applicationGroupName = groupResult[0].name;
     }
 
-    const [itemResult] = await execSqlWithTimer(searchThumbQs, [recordId]);
+    const [itemResult] = await pool.query(searchThumbQs, [recordId]);
     if (itemResult.length === 1) {
       thumbNailItemId = itemResult[0].item_id;
     }
 
-    const [countResult] = await execSqlWithTimer(countQs, [recordId]);
+    const [countResult] = await pool.query(countQs, [recordId]);
     if (countResult.length === 1) {
       commentCount = countResult[0]['count(*)'];
     }
 
-    const [lastResult] = await execSqlWithTimer(searchLastQs, [user.user_id, recordId]);
+    const [lastResult] = await pool.query(searchLastQs, [user.user_id, recordId]);
     if (lastResult.length === 1) {
       mylog(`updatedAt: ${updatedAt}`);
       const updatedAtNum = Date.parse(updatedAt);
@@ -398,7 +367,7 @@ const tomeActive = async (req, res) => {
     items[i] = resObj;
   }
 
-  const [recordCountResult] = await execSqlWithTimer(recordCountQs, param);
+  const [recordCountResult] = await pool.query(recordCountQs, param);
   if (recordCountResult.length === 1) {
     count = recordCountResult[0]['count(*)'];
   }
@@ -426,7 +395,7 @@ const allActive = async (req, res) => {
 
   const searchRecordQs = `select record_id, title, application_group, created_by, created_at, updated_at from record where status = "open" order by updated_at desc, record_id asc limit ? offset ?`;
 
-  const [recordResult] = await execSqlWithTimer(searchRecordQs, [limit, offset]);
+  const [recordResult] = await pool.query(searchRecordQs, [limit, offset]);
   mylog(recordResult);
 
   const items = Array(recordResult.length);
@@ -466,27 +435,27 @@ const allActive = async (req, res) => {
     let commentCount = 0;
     let isUnConfirmed = true;
 
-    const [userResult] = await execSqlWithTimer(searchUserQs, [createdBy]);
+    const [userResult] = await pool.query(searchUserQs, [createdBy]);
     if (userResult.length === 1) {
       createdByName = userResult[0].name;
     }
 
-    const [groupResult] = await execSqlWithTimer(searchGroupQs, [applicationGroup]);
+    const [groupResult] = await pool.query(searchGroupQs, [applicationGroup]);
     if (groupResult.length === 1) {
       applicationGroupName = groupResult[0].name;
     }
 
-    const [itemResult] = await execSqlWithTimer(searchThumbQs, [recordId]);
+    const [itemResult] = await pool.query(searchThumbQs, [recordId]);
     if (itemResult.length === 1) {
       thumbNailItemId = itemResult[0].item_id;
     }
 
-    const [countResult] = await execSqlWithTimer(countQs, [recordId]);
+    const [countResult] = await pool.query(countQs, [recordId]);
     if (countResult.length === 1) {
       commentCount = countResult[0]['count(*)'];
     }
 
-    const [lastResult] = await execSqlWithTimer(searchLastQs, [user.user_id, recordId]);
+    const [lastResult] = await pool.query(searchLastQs, [user.user_id, recordId]);
     if (lastResult.length === 1) {
       mylog(updatedAt);
       const updatedAtNum = Date.parse(updatedAt);
@@ -513,7 +482,7 @@ const allActive = async (req, res) => {
 
   const recordCountQs = 'select count(*) from record where status = "open"';
 
-  const [recordCountResult] = await execSqlWithTimer(recordCountQs);
+  const [recordCountResult] = await pool.query(recordCountQs);
   if (recordCountResult.length === 1) {
     count = recordCountResult[0]['count(*)'];
   }
@@ -541,7 +510,7 @@ const allClosed = async (req, res) => {
 
   const searchRecordQs = `select * from record where status = "closed" order by updated_at desc, record_id asc limit ? offset ?`;
 
-  const [recordResult] = await execSqlWithTimer(searchRecordQs, [limit, offset]);
+  const [recordResult] = await pool.query(searchRecordQs, [limit, offset]);
   mylog(recordResult);
 
   const items = Array(recordResult.length);
@@ -581,27 +550,27 @@ const allClosed = async (req, res) => {
     let commentCount = 0;
     let isUnConfirmed = true;
 
-    const [userResult] = await execSqlWithTimer(searchUserQs, [createdBy]);
+    const [userResult] = await pool.query(searchUserQs, [createdBy]);
     if (userResult.length === 1) {
       createdByName = userResult[0].name;
     }
 
-    const [groupResult] = await execSqlWithTimer(searchGroupQs, [applicationGroup]);
+    const [groupResult] = await pool.query(searchGroupQs, [applicationGroup]);
     if (groupResult.length === 1) {
       applicationGroupName = groupResult[0].name;
     }
 
-    const [itemResult] = await execSqlWithTimer(searchThumbQs, [recordId]);
+    const [itemResult] = await pool.query(searchThumbQs, [recordId]);
     if (itemResult.length === 1) {
       thumbNailItemId = itemResult[0].item_id;
     }
 
-    const [countResult] = await execSqlWithTimer(countQs, [recordId]);
+    const [countResult] = await pool.query(countQs, [recordId]);
     if (countResult.length === 1) {
       commentCount = countResult[0]['count(*)'];
     }
 
-    const [lastResult] = await execSqlWithTimer(searchLastQs, [user.user_id, recordId]);
+    const [lastResult] = await pool.query(searchLastQs, [user.user_id, recordId]);
     if (lastResult.length === 1) {
       mylog(updatedAt);
       const updatedAtNum = Date.parse(updatedAt);
@@ -628,7 +597,7 @@ const allClosed = async (req, res) => {
 
   const recordCountQs = 'select count(*) from record where status = "closed"';
 
-  const [recordCountResult] = await execSqlWithTimer(recordCountQs);
+  const [recordCountResult] = await pool.query(recordCountQs);
   if (recordCountResult.length === 1) {
     count = recordCountResult[0]['count(*)'];
   }
@@ -656,7 +625,7 @@ const mineActive = async (req, res) => {
 
   const searchRecordQs = `select * from record where created_by = ? and status = "open" order by updated_at desc, record_id asc limit ? offset ?`;
 
-  const [recordResult] = await execSqlWithTimer(searchRecordQs, [user.user_id, limit, offset]);
+  const [recordResult] = await pool.query(searchRecordQs, [user.user_id, limit, offset]);
   mylog(recordResult);
 
   const items = Array(recordResult.length);
@@ -696,27 +665,27 @@ const mineActive = async (req, res) => {
     let commentCount = 0;
     let isUnConfirmed = true;
 
-    const [userResult] = await execSqlWithTimer(searchUserQs, [createdBy]);
+    const [userResult] = await pool.query(searchUserQs, [createdBy]);
     if (userResult.length === 1) {
       createdByName = userResult[0].name;
     }
 
-    const [groupResult] = await execSqlWithTimer(searchGroupQs, [applicationGroup]);
+    const [groupResult] = await pool.query(searchGroupQs, [applicationGroup]);
     if (groupResult.length === 1) {
       applicationGroupName = groupResult[0].name;
     }
 
-    const [itemResult] = await execSqlWithTimer(searchThumbQs, [recordId]);
+    const [itemResult] = await pool.query(searchThumbQs, [recordId]);
     if (itemResult.length === 1) {
       thumbNailItemId = itemResult[0].item_id;
     }
 
-    const [countResult] = await execSqlWithTimer(countQs, [recordId]);
+    const [countResult] = await pool.query(countQs, [recordId]);
     if (countResult.length === 1) {
       commentCount = countResult[0]['count(*)'];
     }
 
-    const [lastResult] = await execSqlWithTimer(searchLastQs, [user.user_id, recordId]);
+    const [lastResult] = await pool.query(searchLastQs, [user.user_id, recordId]);
     if (lastResult.length === 1) {
       mylog(updatedAt);
       const updatedAtNum = Date.parse(updatedAt);
@@ -743,7 +712,7 @@ const mineActive = async (req, res) => {
 
   const recordCountQs = 'select count(*) from record where created_by = ? and status = "open"';
 
-  const [recordCountResult] = await execSqlWithTimer(recordCountQs, [user.user_id]);
+  const [recordCountResult] = await pool.query(recordCountQs, [user.user_id]);
   if (recordCountResult.length === 1) {
     count = recordCountResult[0]['count(*)'];
   }
@@ -764,7 +733,7 @@ const updateRecord = async (req, res) => {
   const recordId = req.params.recordId;
   const status = req.body.status;
 
-  await execSqlWithTimer(`update record set status = ? where record_id = ?`, [
+  await pool.query(`update record set status = ? where record_id = ?`, [
     `${status}`,
     `${recordId}`,
   ]);
@@ -786,7 +755,7 @@ const getComments = async (req, res) => {
 
   const commentQs = `select * from record_comment where linked_record_id = ? order by created_at desc`;
 
-  const [commentResult] = await execSqlWithTimer(commentQs, [`${recordId}`]);
+  const [commentResult] = await pool.query(commentQs, [`${recordId}`]);
   mylog(commentResult);
 
   const commentList = Array(commentResult.length);
@@ -805,17 +774,17 @@ const getComments = async (req, res) => {
     };
     const line = commentResult[i];
 
-    const [primaryResult] = await execSqlWithTimer(searchPrimaryGroupQs, [line.created_by]);
+    const [primaryResult] = await pool.query(searchPrimaryGroupQs, [line.created_by]);
     if (primaryResult.length === 1) {
       const primaryGroupId = primaryResult[0].group_id;
 
-      const [groupResult] = await execSqlWithTimer(searchGroupQs, [primaryGroupId]);
+      const [groupResult] = await pool.query(searchGroupQs, [primaryGroupId]);
       if (groupResult.length === 1) {
         commentInfo.createdByPrimaryGroupName = groupResult[0].name;
       }
     }
 
-    const [userResult] = await execSqlWithTimer(searchUserQs, [line.created_by]);
+    const [userResult] = await pool.query(searchUserQs, [line.created_by]);
     if (userResult.length === 1) {
       commentInfo.createdByName = userResult[0].name;
     }
@@ -848,7 +817,7 @@ const postComments = async (req, res) => {
   const recordId = req.params.recordId;
   const value = req.body.value;
 
-  await execSqlWithTimer(
+  await pool.query(
     `
     insert into record_comment
     (linked_record_id, value, created_by, created_at)
@@ -856,7 +825,7 @@ const postComments = async (req, res) => {
     [`${recordId}`, `${value}`, user.user_id],
   );
 
-  await execSqlWithTimer(
+  await pool.query(
     `
     update record set updated_at = now() where record_id = ?;`,
     [`${recordId}`],
@@ -875,7 +844,7 @@ const getCategories = async (req, res) => {
     return;
   }
 
-  const [rows] = await execSqlWithTimer(`select * from category`);
+  const [rows] = await pool.query(`select * from category`);
 
   for (const row of rows) {
     mylog(row);
@@ -926,12 +895,12 @@ const postFiles = async (req, res) => {
 
   await Promise.all([imgPromise, thumbPromise]);
 
-  await execSqlWithTimer(
+  await pool.query(
     `insert into file (file_id, path, name)
         values (?, ?, ?)`,
     [`${newId}`, `${filePath}${newId}_${name}`, `${name}`],
   );
-  await execSqlWithTimer(
+  await pool.query(
     `insert into file (file_id, path, name)
         values (?, ?, ?)`,
     [`${newThumbId}`, `${filePath}${newThumbId}_thumb_${name}`, `thumb_${name}`],
@@ -955,7 +924,7 @@ const getRecordItemFile = async (req, res) => {
   const itemId = Number(req.params.itemId);
   mylog(itemId);
 
-  const [rows] = await execSqlWithTimer(
+  const [rows] = await pool.query(
     `select f.name, f.path from record_item_file r
     inner join file f
     on
@@ -997,7 +966,7 @@ const getRecordItemFileThumbnail = async (req, res) => {
   const itemId = Number(req.params.itemId);
   mylog(itemId);
 
-  const [rows] = await execSqlWithTimer(
+  const [rows] = await pool.query(
     `select f.name, f.path from record_item_file r
     inner join file f
     on
