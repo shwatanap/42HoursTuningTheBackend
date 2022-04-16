@@ -435,7 +435,7 @@ const allActive = async (req, res) => {
     let commentCount = 0;
     let isUnConfirmed = true;
 
-    var start = Date.now();
+    // var start = Date.now();
     const results = await Promise.all([
       pool.query(searchUserQs, [createdBy]),
       pool.query(searchGroupQs, [applicationGroup]),
@@ -443,8 +443,8 @@ const allActive = async (req, res) => {
       pool.query(countQs, [recordId]),
       pool.query(searchLastQs, [user.user_id, recordId]),
     ]);
-    var end = Date.now();
-    console.log(`All Time: ${end - start} [ms]`);
+    // var end = Date.now();
+    // console.log(`All Time: ${end - start} [ms]`);
     if (results[0].length === 1) {
       createdByName = results[0][0].name;
     }
