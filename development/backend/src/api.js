@@ -414,7 +414,7 @@ const tomeActive = async (req, res) => {
     promises.push(createResFromRecordResult(record));
   }
 
-  Promise.all(promises).then((resObjs) => {
+  await Promise.all(promises).then((resObjs) => {
     for (let i = 0; i < resObjs.length; i++) {
       items[i] = resObjs[i];
     }
