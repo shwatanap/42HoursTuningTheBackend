@@ -93,22 +93,14 @@ const postRecords = async (req, res) => {
     ],
   );
 
-  let insertingRecordItemQuery = `insert into record_item_file
-        (linked_record_id, linked_file_id, linked_thumbnail_file_id, created_at) values`
-  let param = [];
-  for (let i = 0; i < body.fileIdList.length; i++) {
-    if (i !== 0) {
-      insertingRecordItemQuery += `, (?, ?, ?, now())`;
-    } else {
-      insertingRecordItemQuery += ` (?, ?, ?, now())`;
-    }
-    const fileId = body.fileIdList[i].fileId;
-    const thumbFileId = body.fileIdList[i].thumbFileId;
-    param = param.concat([`${newId}`, `${fileId}`, `${thumbFileId}`]);
+  for (const e of body.fileIdList) {
+    await pool.query(
+      `insert into record_item_file
+        (linked_record_id, linked_file_id, linked_thumbnail_file_id, created_at)
+        values (?, ?, ?, now())`,
+      [`${newId}`, `${e.fileId}`, `${e.thumbFileId}`],
+    );
   }
-  console.log(insertingRecordItemQuery);
-  console.log(`param: ${param}`);
-  await pool.query(insertingRecordItemQuery, param);
 
   res.send({ recordId: newId });
 };
