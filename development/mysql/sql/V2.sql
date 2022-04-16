@@ -1,0 +1,1 @@
+ALTER TABLE record ADD INDEX createdby_status(created_by, status)
