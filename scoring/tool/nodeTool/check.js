@@ -96,12 +96,13 @@ const httpClient = async (key, method, path, body, forAuthCheck = false) => {
         body: body ? JSON.stringify(body) : undefined
     }
     options.headers['x-app-key'] = key;
-
+	var start = Date.now();
     const r = await axios({ url, headers: options.headers, method: options.method, data: options.body,
             validateStatus: function (status) {
                 return status > 1;
             } });
-
+	var end = Date.now();
+	console.log(`Time: ${end - start} [ms]`)
     if (!forAuthCheck) {
         if (r.status !== 200) {
             throw Error(`${method} ${path} Unexpect status ${r.status}`);
