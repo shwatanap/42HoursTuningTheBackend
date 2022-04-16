@@ -11,3 +11,9 @@ dist
 .DS_Store
 
 volume
+
+# SQL Dumpfile
+app.dump.gz
+
+# SSH key
+sshkey
