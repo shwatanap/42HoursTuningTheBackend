@@ -4,6 +4,10 @@ ALTER TABLE group_member ADD INDEX user_id_idx(user_id);
 
 ALTER TABLE category_group ADD INDEX group_id_idx(group_id);
 
+##### record #####
+
+ALTER TABLE record ADD INDEX category_id_application_group_index(category_id, application_group);
+
 ALTER TABLE record ADD INDEX createdby_status_index(created_by, status);
 
 ALTER TABLE record_comment ADD INDEX linked_record_id_index(linked_record_id);
