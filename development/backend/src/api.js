@@ -253,7 +253,21 @@ const tomeActive = async (req, res) => {
   start = Date.now();
 
   let searchRecordQs =
-    'select * from record where status = "open" and (category_id, application_group) in (';
+    `SELECT record.record_id,
+      record.status,
+      record.title,
+      record.detail,
+      record.category_id,
+      record.application_group,
+      record.created_by,
+      record.created_at,
+      record.updated_at,
+      user.name AS user_name,
+      group_info.name AS group_name
+FROM record
+LEFT OUTER JOIN user ON record.created_by = user.user_id
+LEFT OUTER JOIN group_info ON record.application_group = group_info.group_id
+WHERE record.status = "open" AND (record.category_id, record.application_group) IN (`
   let recordCountQs =
     'select count(*) from record where status = "open" and (category_id, application_group) in (';
   const param = [];
@@ -269,7 +283,7 @@ const tomeActive = async (req, res) => {
     param.push(targetCategoryAppGroupList[i].categoryId);
     param.push(targetCategoryAppGroupList[i].applicationGroup);
   }
-  searchRecordQs += ' ) order by updated_at desc, record_id  limit ? offset ?';
+  searchRecordQs += `) ORDER BY updated_at DESC, record_id LIMIT ? offset ?;`
   recordCountQs += ' )';
   param.push(limit);
   param.push(offset);
@@ -287,38 +301,19 @@ const tomeActive = async (req, res) => {
   const items = Array(recordResult.length);
   let count = 0;
 
-  const searchUserQs = 'select * from user where user_id = ?';
-  const searchGroupQs = 'select * from group_info where group_id = ?';
   const searchThumbQs =
     'select * from record_item_file where linked_record_id = ? order by item_id asc limit 1';
   const countQs = 'select count(*) from record_comment where linked_record_id = ?';
   const searchLastQs = 'select * from record_last_access where user_id = ? and record_id = ?';
 
   /*
-  recordResult Sample
-[
-  {
-    record_id: '5b22dba3-2d54-46ef-a0e8-002205d43f0e',
-    status: 'open',
-    title: 'title1',
-    detail: 'detail1',
-    category_id: 1,
-    application_group: 1501,
-    created_by: 100001,
-    created_at: '2022-04-16T13:28:51.000Z',
-    updated_at: '2022-04-16T13:28:53.000Z'
-  }
-]
-  */
-
-  /*
   recordResultの情報をもとに取得する必要のあるもの
     recordId: recordResult.record_id,
     title: recordResult.title,
     applicationGroup: recordResult.application_group,
-    applicationGroupName: 追加取得,
+    applicationGroupName: recordResult.group_name,
     createdBy: recordResult.created_by,
-    createdByName: 追加取得,
+    createdByName: recordResult.user_name,
     createAt: recordResult.create_at,
     commentCount: 追加取得,
     isUnConfirmed: 追加取得,
@@ -345,25 +340,11 @@ const tomeActive = async (req, res) => {
     const createdBy = record.created_by;
     const applicationGroup = record.application_group;
     const updatedAt = record.updated_at;
-    let createdByName = null;
-    let applicationGroupName = null;
+    let createdByName = record.user_name;
+    let applicationGroupName = record.group_name;
     let thumbNailItemId = null;
     let commentCount = 0;
     let isUnConfirmed = true;
-
-    const searchingUserPromise = pool.query(searchUserQs, [createdBy]).then((result) => {
-      const [userResult] = result;
-      if (userResult.length === 1) {
-        createdByName = userResult[0].name;
-      }
-    });
-
-    const searchingGroupPromise = pool.query(searchGroupQs, [applicationGroup]).then((result) => {
-      const [groupResult] = result;
-      if (groupResult.length === 1) {
-        applicationGroupName = groupResult[0].name;
-      }
-    });
 
     const searchingThumbPromise = pool.query(searchThumbQs, [recordId]).then((result) => {
       const [itemResult] = result;
@@ -391,8 +372,7 @@ const tomeActive = async (req, res) => {
       }
     });
 
-    await Promise.all([searchingUserPromise, searchingGroupPromise, searchingThumbPromise,
-      countingPromise, searchingLastPromise]);
+    await Promise.all([searchingThumbPromise, countingPromise, searchingLastPromise]);
 
     resObj.recordId = recordId;
     resObj.title = record.title;
