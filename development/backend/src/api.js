@@ -233,21 +233,23 @@ const tomeActive = async (req, res) => {
     limit = 10;
   }
 
+  // 自分が所属しているグループを取得
   const searchMyGroupQs = `select * from group_member where user_id = ?`;
   const [myGroupResult] = await pool.query(searchMyGroupQs, [user.user_id]);
-  mylog(myGroupResult);
+  mylog(`myGroupResult: ${JSON.stringify(myGroupResult)}`);
 
+  // 所属グループが持っているカテゴリ一覧を取得
   const targetCategoryAppGroupList = [];
   const searchTargetQs = `select * from category_group where group_id = ?`;
 
   for (let i = 0; i < myGroupResult.length; i++) {
     const groupId = myGroupResult[i].group_id;
-    mylog(groupId);
+    mylog(`groupId: ${groupId}`);
 
     const [targetResult] = await pool.query(searchTargetQs, [groupId]);
     for (let j = 0; j < targetResult.length; j++) {
       const targetLine = targetResult[j];
-      mylog(targetLine);
+      mylog(`targetLine: ${targetLine}`);
 
       targetCategoryAppGroupList.push({
         categoryId: targetLine.category_id,
@@ -277,11 +279,11 @@ const tomeActive = async (req, res) => {
   recordCountQs += ' )';
   param.push(limit);
   param.push(offset);
-  mylog(searchRecordQs);
-  mylog(param);
+  mylog(`searchRecordQs: ${searchRecordQs}`);
+  mylog(`param: ${param}`);
 
   const [recordResult] = await pool.query(searchRecordQs, param);
-  mylog(recordResult);
+  mylog(`recordResult: ${recordResult}`);
 
   const items = Array(recordResult.length);
   let count = 0;
@@ -309,7 +311,7 @@ const tomeActive = async (req, res) => {
     };
 
     const line = recordResult[i];
-    mylog(line);
+    mylog(`line: ${line}`);
     const recordId = recordResult[i].record_id;
     const createdBy = line.created_by;
     const applicationGroup = line.application_group;
@@ -342,7 +344,7 @@ const tomeActive = async (req, res) => {
 
     const [lastResult] = await pool.query(searchLastQs, [user.user_id, recordId]);
     if (lastResult.length === 1) {
-      mylog(updatedAt);
+      mylog(`updatedAt: ${updatedAt}`);
       const updatedAtNum = Date.parse(updatedAt);
       const accessTimeNum = Date.parse(lastResult[0].access_time);
       if (updatedAtNum <= accessTimeNum) {
