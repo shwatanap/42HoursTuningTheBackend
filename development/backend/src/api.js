@@ -664,11 +664,10 @@ const mineActive = async (req, res) => {
     let commentCount = 0;
     let isUnConfirmed = true;
 
-    // const [userResult] = await pool.query(searchUserQs, [createdBy]);
-    // if (userResult.length === 1) {
-    //   createdByName = userResult[0].name;
-    // }
-	createdByName = user.name;
+    const [userResult] = await pool.query(searchUserQs, [createdBy]);
+    if (userResult.length === 1) {
+      createdByName = userResult[0].name;
+    }
 
     const [groupResult] = await pool.query(searchGroupQs, [applicationGroup]);
     if (groupResult.length === 1) {
