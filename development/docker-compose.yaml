@@ -38,17 +38,15 @@ services:
     volumes:
       - ../volume/mysql:/var/lib/mysql
   mysql-slave:
-    image: mysql:8.0
-    ports:
-      - 3306
+    build:
+      context: ./mysql-slave
+      dockerfile: Dockerfile
     depends_on:
       - mysql
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: 1
+      MYSQL_ROOT_PASSWORD: "root"
       MYSQL_DATABASE: "app"
       MYSQL_USER: "backend"
       MYSQL_PASSWORD: "backend"
       MYSQL_MASTER_HOST: "mysql"
-    volumes:
-      - ./mysql/slave.cnf:/etc/mysql/conf.d/my.cnf
-      - ./mysql/start-slave.sh:/docker-entrypoint-initdb.d/start-slave.sh
