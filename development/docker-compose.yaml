@@ -45,7 +45,6 @@ services:
       - mysql
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: 1
-      MYSQL_ROOT_PASSWORD: "root"
       MYSQL_DATABASE: "app"
       MYSQL_USER: "backend"
       MYSQL_PASSWORD: "backend"
