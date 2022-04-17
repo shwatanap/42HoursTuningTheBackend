@@ -26,7 +26,15 @@ services:
       MYSQL_DATABASE: "app"
       MYSQL_USER: "backend"
       MYSQL_PASSWORD: "backend"
-    volumes:
-      - type: bind
-        source: "./data/mysql"
-        target: "/var/lib/mysql"
+  mysql-slave:
+    build:
+      context: ./../development/mysql-slave
+      dockerfile: Dockerfile
+    depends_on:
+      - mysql
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+      MYSQL_DATABASE: "app"
+      MYSQL_USER: "backend"
+      MYSQL_PASSWORD: "backend"
+      MYSQL_MASTER_HOST: "mysql"

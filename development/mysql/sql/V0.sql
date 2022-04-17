@@ -41,7 +41,7 @@ CREATE TABLE `record_item_file` (
     PRIMARY KEY (`item_id`)
 );
 
-CREATE TABLE `record_last_access` (
+CREATE TABLE `irecord_last_access` (
     `record_id` VARCHAR(64) NOT NULL,
     `user_id` bigint NOT NULL,
     `access_time` TIMESTAMP NOT NULL,
