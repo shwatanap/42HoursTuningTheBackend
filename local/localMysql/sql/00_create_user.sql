@@ -1,0 +1,3 @@
+# ProxySQL
+CREATE USER 'monitor'@'%' IDENTIFIED BY 'monitor';
+FLUSH PRIVILEGES;
