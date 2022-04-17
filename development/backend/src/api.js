@@ -233,30 +233,24 @@ const tomeActive = async (req, res) => {
     limit = 10;
   }
 
-  // 自分が所属しているグループを取得
-  const searchMyGroupQs = `select * from group_member where user_id = ?`;
-  const [myGroupResult] = await pool.query(searchMyGroupQs, [user.user_id]);
-  mylog(`myGroupResult: ${JSON.stringify(myGroupResult)}`);
-
-  // 所属グループが持っているカテゴリ一覧を取得
+  // 自分が所属しているグループのカテゴリ一覧を取得を取得
+  let start = Date.now();
   const targetCategoryAppGroupList = [];
-  const searchTargetQs = `select * from category_group where group_id = ?`;
-
-  for (let i = 0; i < myGroupResult.length; i++) {
-    const groupId = myGroupResult[i].group_id;
-    mylog(`groupId: ${groupId}`);
-
-    const [targetResult] = await pool.query(searchTargetQs, [groupId]);
-    for (let j = 0; j < targetResult.length; j++) {
-      const targetLine = targetResult[j];
-      mylog(`targetLine: ${targetLine}`);
-
-      targetCategoryAppGroupList.push({
-        categoryId: targetLine.category_id,
-        applicationGroup: targetLine.application_group,
-      });
-    }
+  const searchMyGroupCategoryQs = `SELECT category_id, application_group FROM group_member ` +
+    `INNER JOIN category_group ON category_group.group_id = group_member.group_id ` +
+    `WHERE group_member.user_id = ?`;
+  const [myGroupCategories] = await pool.query(searchMyGroupCategoryQs, [user.user_id]);
+  console.log(JSON.stringify(myGroupCategories));
+  for (const myGroupCategory of myGroupCategories) {
+    targetCategoryAppGroupList.push({
+      categoryId: myGroupCategory.category_id,
+      applicationGroup: myGroupCategory.application_group,
+    });
   }
+  console.log(`自分が所属しているグループのカテゴリを取得: ${Date.now() - start}`);
+
+
+  start = Date.now();
 
   let searchRecordQs =
     'select * from record where status = "open" and (category_id, application_group) in (';
@@ -283,7 +277,12 @@ const tomeActive = async (req, res) => {
   mylog(`param: ${param}`);
 
   const [recordResult] = await pool.query(searchRecordQs, param);
-  mylog(`recordResult: ${recordResult}`);
+  mylog(`recordResult: ${JSON.stringify(recordResult)}`);
+
+  console.log(`自分の所属しているグループ宛てのレコードを取得する。: ${Date.now() - start}`);
+
+
+  start = Date.now();
 
   const items = Array(recordResult.length);
   let count = 0;
@@ -295,7 +294,39 @@ const tomeActive = async (req, res) => {
   const countQs = 'select count(*) from record_comment where linked_record_id = ?';
   const searchLastQs = 'select * from record_last_access where user_id = ? and record_id = ?';
 
-  for (let i = 0; i < recordResult.length; i++) {
+  /*
+  recordResult Sample
+[
+  {
+    record_id: '5b22dba3-2d54-46ef-a0e8-002205d43f0e',
+    status: 'open',
+    title: 'title1',
+    detail: 'detail1',
+    category_id: 1,
+    application_group: 1501,
+    created_by: 100001,
+    created_at: '2022-04-16T13:28:51.000Z',
+    updated_at: '2022-04-16T13:28:53.000Z'
+  }
+]
+  */
+
+  /*
+  recordResultの情報をもとに取得する必要のあるもの
+    recordId: recordResult.record_id,
+    title: recordResult.title,
+    applicationGroup: recordResult.application_group,
+    applicationGroupName: 追加取得,
+    createdBy: recordResult.created_by,
+    createdByName: 追加取得,
+    createAt: recordResult.create_at,
+    commentCount: 追加取得,
+    isUnConfirmed: 追加取得,
+    thumbNailItemId: 追加取得,
+    updatedAt: recordResult.update_at,
+  */
+
+  const createResFromRecordResult = async (record) => {
     const resObj = {
       recordId: null,
       title: '',
@@ -310,67 +341,91 @@ const tomeActive = async (req, res) => {
       updatedAt: '',
     };
 
-    const line = recordResult[i];
-    mylog(`line: ${line}`);
-    const recordId = recordResult[i].record_id;
-    const createdBy = line.created_by;
-    const applicationGroup = line.application_group;
-    const updatedAt = line.updated_at;
+    const recordId = record.record_id;
+    const createdBy = record.created_by;
+    const applicationGroup = record.application_group;
+    const updatedAt = record.updated_at;
     let createdByName = null;
     let applicationGroupName = null;
     let thumbNailItemId = null;
     let commentCount = 0;
     let isUnConfirmed = true;
 
-    const [userResult] = await pool.query(searchUserQs, [createdBy]);
-    if (userResult.length === 1) {
-      createdByName = userResult[0].name;
-    }
-
-    const [groupResult] = await pool.query(searchGroupQs, [applicationGroup]);
-    if (groupResult.length === 1) {
-      applicationGroupName = groupResult[0].name;
-    }
-
-    const [itemResult] = await pool.query(searchThumbQs, [recordId]);
-    if (itemResult.length === 1) {
-      thumbNailItemId = itemResult[0].item_id;
-    }
-
-    const [countResult] = await pool.query(countQs, [recordId]);
-    if (countResult.length === 1) {
-      commentCount = countResult[0]['count(*)'];
-    }
-
-    const [lastResult] = await pool.query(searchLastQs, [user.user_id, recordId]);
-    if (lastResult.length === 1) {
-      mylog(`updatedAt: ${updatedAt}`);
-      const updatedAtNum = Date.parse(updatedAt);
-      const accessTimeNum = Date.parse(lastResult[0].access_time);
-      if (updatedAtNum <= accessTimeNum) {
-        isUnConfirmed = false;
+    const searchingUserPromise = pool.query(searchUserQs, [createdBy]).then((result) => {
+      const [userResult] = result;
+      if (userResult.length === 1) {
+        createdByName = userResult[0].name;
       }
-    }
+    });
+
+    const searchingGroupPromise = pool.query(searchGroupQs, [applicationGroup]).then((result) => {
+      const [groupResult] = result;
+      if (groupResult.length === 1) {
+        applicationGroupName = groupResult[0].name;
+      }
+    });
+
+    const searchingThumbPromise = pool.query(searchThumbQs, [recordId]).then((result) => {
+      const [itemResult] = result;
+      if (itemResult.length === 1) {
+        thumbNailItemId = itemResult[0].item_id;
+      }
+    });
+
+    const countingPromise = pool.query(countQs, [recordId]).then((result) => {
+      const [countResult] = result;
+      if (countResult.length === 1) {
+        commentCount = countResult[0]['count(*)'];
+      }
+    });
+
+    const searchingLastPromise = pool.query(searchLastQs, [user.user_id, recordId]).then((result) => {
+      const [lastResult] = result;
+      if (lastResult.length === 1) {
+        mylog(`updatedAt: ${updatedAt}`);
+        const updatedAtNum = Date.parse(updatedAt);
+        const accessTimeNum = Date.parse(lastResult[0].access_time);
+        if (updatedAtNum <= accessTimeNum) {
+          isUnConfirmed = false;
+        }
+      }
+    });
+
+    await Promise.all([searchingUserPromise, searchingGroupPromise, searchingThumbPromise,
+      countingPromise, searchingLastPromise]);
 
     resObj.recordId = recordId;
-    resObj.title = line.title;
+    resObj.title = record.title;
     resObj.applicationGroup = applicationGroup;
     resObj.applicationGroupName = applicationGroupName;
     resObj.createdBy = createdBy;
     resObj.createdByName = createdByName;
-    resObj.createAt = line.created_at;
+    resObj.createAt = record.created_at;
     resObj.commentCount = commentCount;
     resObj.isUnConfirmed = isUnConfirmed;
     resObj.thumbNailItemId = thumbNailItemId;
     resObj.updatedAt = updatedAt;
 
-    items[i] = resObj;
+    return resObj;
   }
+
+  let promises = [];
+  for (const record of recordResult) {
+    promises.push(createResFromRecordResult(record));
+  }
+
+  await Promise.all(promises).then((resObjs) => {
+    for (let i = 0; i < resObjs.length; i++) {
+      items[i] = resObjs[i];
+    }
+  })
 
   const [recordCountResult] = await pool.query(recordCountQs, param);
   if (recordCountResult.length === 1) {
     count = recordCountResult[0]['count(*)'];
   }
+
+  console.log(`レスポンス用のデータを生成する: ${Date.now() - start}`);
 
   res.send({ count: count, items: items });
 };
